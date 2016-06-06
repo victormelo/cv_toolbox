@@ -17,8 +17,8 @@ def load_dataset():
         train.append({'g': g, 'f': f})
 
     for author in FOLDERS:
-        r, q = load_feature_vector_test(author)
-        test.append({'ref': r, 'questioned': q})
+        r, q, labels = load_feature_vector_test(author)
+        test.append({'ref': r, 'questioned': q, 'labels' : labels})
 
     return train, test
 
@@ -50,9 +50,16 @@ def load_samples(set):
 
 def load_feature_vector_test(author):
     r = open('saved_features_sigcomp2011/test/reference/author-%s' % author)
-    q = open('saved_features_sigcomp2011/test/questioned/author-%s-genuine' % author)
+    q1 = open('saved_features_sigcomp2011/test/questioned/author-%s-genuine' % author)
+    q2 = open('saved_features_sigcomp2011/test/questioned/author-%s-forgeries' % author)
+    q1 = np.load(q1)
+    q2 = np.load(q2)
 
-    return np.load(r), np.load(q)
+    q = np.concatenate((q1, q2))
+    genuine = np.ones(len(q1))
+    forgeries = np.zeros(len(q2))
+    labels = np.append(genuine, forgeries).astype('int')
+    return np.load(r), q, labels
 
 
 def load_feature_vector_train(author):

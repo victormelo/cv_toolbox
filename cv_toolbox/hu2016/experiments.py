@@ -3,7 +3,8 @@ import cedar55
 import sigcomp2011
 import core
 import numpy as np
-
+from sklearn.metrics import roc_curve, auc
+import matplotlib.pyplot as plt
 
 def run_sigcomp2011():
     train, test = sigcomp2011.load_dataset()
@@ -11,11 +12,24 @@ def run_sigcomp2011():
 
     X_train, y_train = core.training_set(samples)
     forest = ensemble.RandomForestClassifier(n_estimators=100, max_depth=10).fit(X_train, y_train)
-
+    score = []
+    label = []
     for t in test:
-        for questioned in t['questioned']:
+
+        for index, questioned in enumerate(t['questioned']):
             d = np.abs(questioned - t['ref'])
-            print forest.predict_proba(d).max()
+            score.append(forest.predict_proba(d)[:, 1].mean())
+            label.append(t['labels'][index])
+
+    fpr, tpr, t = roc_curve(label, score)
+    roc_EER = []
+    cords = zip(fpr, tpr)
+
+    dif = np.abs(fpr - tpr)
+    arg = np.argmin(dif)
+    print arg, fpr[arg], tpr[arg], t[arg]
+    plt.plot(fpr, tpr)
+    plt.show()
 
 def run_cedar55():
 
