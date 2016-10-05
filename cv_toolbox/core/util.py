@@ -8,15 +8,34 @@ from math import floor
 
 def grid_image(img, h_grid, w_grid, overlap):
     h, w = img.shape
-    h_factor = floor(h / h_grid * (1 + overlap))
-    w_factor = floor(w / w_grid * (1 + overlap))
+    grid_h = floor(h / h_grid) # * (1 + overlap))
+    grid_w = floor(w / w_grid) #* (1 + overlap))/2 )
+    overlap_h = floor(grid_h * overlap / 2)
+    overlap_w = floor(grid_w * overlap / 2)
+
     coordinates = list()
 
     for i in range(h_grid):
         for j in range(w_grid):
-            x = floor(i*h_factor*(1-overlap))
-            y = floor(j*w_factor*(1-overlap))
-            coordinates.append((int(x), int(x+h_factor), int(y), int(y+w_factor)))
+            x = floor(i*grid_h) - overlap_h # *(1-overlap)) - (h_factor / 2)
+            y = floor(j*grid_w) - overlap_w # *(1-overlap)) - (w_factor / 2)
+            xend = x + grid_h + overlap_h
+            yend = y + grid_w + overlap_w
+
+            if x < 0:
+                x = 0
+
+            if y < 0:
+                y = 0
+
+            if xend > h:
+                xend = h
+
+            if yend > w:
+                tend = w
+
+
+            coordinates.append((int(x), int(xend), int(y), int(yend)))
 
     return coordinates
 

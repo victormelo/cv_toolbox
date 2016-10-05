@@ -6,18 +6,20 @@ import shutil
 
 PATH = '/home/victor/mestrado-local/bases/sigcomp-2011/'
 
-FOLDERS = os.listdir(PATH+'Testdata_SigComp2011/SigComp11-Offlinetestset/Dutch/Questioned(1287)/')
+FOLDERS = {}
+FOLDERS['dutch'] = os.listdir(PATH+'Testdata_SigComp2011/SigComp11-Offlinetestset/Dutch/Questioned(1287)/')
+FOLDERS['chinese'] = os.listdir(PATH+'Testdata_SigComp2011/SigComp11-Offlinetestset/Chinese/Questioned(487)/')
 
 
-def load_dataset():
+def load_dataset(dataset='dutch'):
     train = []
     test = []
     for i in range(16):
-        g, f = load_feature_vector_train(i)
+        g, f = load_feature_vector_train(i, dataset)
         train.append({'g': g, 'f': f})
 
-    for author in FOLDERS:
-        r, q, labels = load_feature_vector_test(author)
+    for author in FOLDERS[dataset]:
+        r, q, labels = load_feature_vector_test(author, dataset)
         test.append({'ref': r, 'questioned': q, 'labels' : labels})
 
     return train, test
@@ -48,10 +50,10 @@ def load_samples(set):
 
     return train_samples
 
-def load_feature_vector_test(author):
-    r = open('saved_features_sigcomp2011/test/reference/author-%s' % author)
-    q1 = open('saved_features_sigcomp2011/test/questioned/author-%s-genuine' % author)
-    q2 = open('saved_features_sigcomp2011/test/questioned/author-%s-forgeries' % author)
+def load_feature_vector_test(author, dataset='dutch'):
+    r = open('saved_features_sigcomp2011_%s/test/reference/author-%s' % (dataset, author))
+    q1 = open('saved_features_sigcomp2011_%s/test/questioned/author-%s-genuine' % (dataset, author))
+    q2 = open('saved_features_sigcomp2011_%s/test/questioned/author-%s-forgeries' % (dataset, author))
     q1 = np.load(q1)
     q2 = np.load(q2)
 
@@ -62,14 +64,14 @@ def load_feature_vector_test(author):
     return np.load(r), q, labels
 
 
-def load_feature_vector_train(author):
-    f = open('saved_features_sigcomp2011/train/author-%d-forgeries' % (author + 1), 'r')
-    g = open('saved_features_sigcomp2011/train/author-%d-genuine' % (author + 1), 'r')
+def load_feature_vector_train(author, dataset='dutch'):
+    f = open('saved_features_sigcomp2011_%s/train/author-%d-forgeries' % (dataset, author + 1), 'r')
+    g = open('saved_features_sigcomp2011_%s/train/author-%d-genuine' % (dataset, author + 1), 'r')
 
     return np.load(g), np.load(f)
 
 def create_database_reference():
-    dirpath = 'saved_features_sigcomp2011/test/reference/'
+    dirpath = 'saved_features_sigcomp2011_dutch/test/reference/'
     shutil.rmtree(dirpath)
     os.mkdir(dirpath)
     reference_path = PATH + 'Testdata_SigComp2011/SigComp11-Offlinetestset/Dutch/Reference(646)/'
@@ -85,7 +87,7 @@ def create_database_reference():
         print 'Saved features from author %s' % folder
 
 def create_database_questioned():
-    dirpath = 'saved_features_sigcomp2011/test/questioned/'
+    dirpath = 'saved_features_sigcomp2011_dutch/test/questioned/'
     shutil.rmtree(dirpath)
     os.mkdir(dirpath)
     questioned_path = PATH + 'Testdata_SigComp2011/SigComp11-Offlinetestset/Dutch/Questioned(1287)/'
@@ -111,9 +113,10 @@ def create_database_questioned():
 
 
 def create_database_train():
-    dirpath = 'saved_features_sigcomp2011/train/'
+    dirpath = 'saved_features_sigcomp2011_dutch/train/'
     shutil.rmtree(dirpath)
     os.mkdir(dirpath)
+
     for author in range(16):
         # For both online and offline modes, signatures of 16
         # reference writers and skilled forgeries of these signatures.
@@ -153,9 +156,8 @@ def compute_feature_vector(author, type='g', type_path='trainingSet/OfflineSigna
 
 def main():
     # create_database_train()
-    # create_database_reference()
-    # create_database_questioned()
-    pass
+    create_database_reference()
+    create_database_questioned()
 
 if __name__ == '__main__':
     main()
