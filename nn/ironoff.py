@@ -17,6 +17,12 @@ import scipy
 import shutil
 import scipy.misc
 
+model_path = "/home/vkslm/model.ckpt"
+
+h = 150
+w = 383
+
+
 def lrelu(x, leak=0.2, name="lrelu"):
     """Leaky rectifier.
 
@@ -51,12 +57,12 @@ def load_dataset(batch_size, num_epochs):
         """
         off_fns = []
         on_fns = []
-        for i in range(1,6023):
-            off_fns.append('off-%010d.png' % i)
-            on_fns.append('on-%010d.png' % i)
+        for i in range(23003):
+            off_fns.append('%010d-off.png' % i)
+            on_fns.append('%010d-on.png' % i)
 
-        label_fns = [os.path.join('ironoff6k/', f) for f in off_fns]
-        data_fns = [os.path.join('ironoff6k/', f) for f in on_fns]
+        label_fns = [os.path.join('out/', f) for f in off_fns]
+        data_fns = [os.path.join('out/', f) for f in on_fns]
 
         return data_fns, label_fns
 
@@ -71,14 +77,13 @@ def load_dataset(batch_size, num_epochs):
         data_content = tf.read_file(input_queue[0])
         label_content = tf.read_file(input_queue[1])
 
-
         data = tf.image.decode_png(data_content, channels=1)
         label = tf.image.decode_png(label_content, channels=1)
 
-        data.set_shape([210, 545, 1])
+        data.set_shape([h, w, 1])
         data = tf.cast(data, tf.float32)/255.0
 
-        label.set_shape([210, 545, 1])
+        label.set_shape([h, w, 1])
         label = tf.cast(label, tf.float32)/255.0
 
         return data, label
@@ -104,9 +109,6 @@ def load_dataset(batch_size, num_epochs):
                                               name='input')
 
     return image_batch, label_batch
-
-h = 210
-w = 545
 
 input_shape=[None, h*w]
 
@@ -179,7 +181,7 @@ for layer_i, shape in enumerate(shapes):
     output = lrelu(tf.add(
         tf.nn.conv2d_transpose(
             current_input, W,
-            tf.pack([tf.shape(x)[0], shape[1], shape[2], shape[3]]),
+            tf.stack([tf.shape(x)[0], shape[1], shape[2], shape[3]]),
             strides=[1, 2, 2, 1], padding='SAME'), b))
     current_input = output
 
@@ -198,30 +200,34 @@ sess = tf.Session()
 
 # %%
 # Fit all training data
-batch_size = 16
+batch_size = 32
 n_epochs = 100
 
 batch_data, batch_label = load_dataset(batch_size, n_epochs)
 
-sess.run(tf.initialize_all_variables())
-sess.run(tf.initialize_local_variables())
+sess.run(tf.global_variables_initializer())
+sess.run(tf.local_variables_initializer())
 tf.train.start_queue_runners(sess=sess)
+saver = tf.train.Saver()
 
 exp_folder = 'results_'+time.strftime('%d_%b_%H-%M-%S')
 os.mkdir(exp_folder)
-
+checkpoint_path = os.path.join(exp_folder, 'model.ckpt')
 for epoch_i in range(n_epochs):
-    for batch_i in range(6000 // batch_size):
+    for batch_i in range(20000 // batch_size):
         batch_data_flatten = tf.reshape(batch_data, [batch_size, h*w])
         batch_label_flatten = tf.reshape(batch_label, [batch_size, h*w])
 
         batch_xs, batch_ys = sess.run([batch_data_flatten, batch_label_flatten])
         sess.run(optimizer, feed_dict={x: batch_xs, y_true: batch_ys})
+        print((batch_i/(20000 // batch_size)))
+    print(epoch_i, sess.run(cost, feed_dict={x: batch_xs, y_true: batch_ys}))
+    saver.save(sess, checkpoint_path, global_step=epoch_i)
 
     folder = exp_folder+'/%05d' % epoch_i
 
     os.mkdir(folder)
-    shutil.copy2('/home/vkslm/playground/index-vae.html', folder+'/index.html')
+    # shutil.copy2('/home/vkslm/playground/index-vae.html', folder+'/index.html')
     recon = sess.run(y, feed_dict={x: batch_xs, y_true: batch_ys})
     for i in range(recon.shape[0]):
         plt.subplot(311)
@@ -235,5 +241,4 @@ for epoch_i in range(n_epochs):
 
         filename = os.path.join(folder, filename)
         plt.savefig(filename)
-
 
