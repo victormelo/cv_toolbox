@@ -16,6 +16,18 @@ from math import ceil
 def invert(image):
     return 255 - image
 
+def read_biosecurid(filename):
+    points = []
+    reader = sio.loadmat(filename)
+
+    for key in range(reader['x'].shape[1]):
+        x = np.round(reader['x'][0, key] / 13731 * (210-1))
+        y = np.round(reader['y'][0, key] / 20504 * (545-1))
+        p = np.round(reader['p'][0, key] / 1024 * 255)
+        points.append({'x' : int(x), 'y': int(y), 'p': int(p)})
+
+    return points
+
 def read(filename):
     points = []
     csvfile = open(filename, encoding="ISO-8859-1")
