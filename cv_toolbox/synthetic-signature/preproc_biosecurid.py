@@ -43,7 +43,7 @@ def create_image(points, shape, interpolate=True):
                     all_points.append(point)
 
     for point in all_points:
-        img_pressure[point['x'], point['y']] = point['p']
+        img_pressure[point['y'], point['x']] = point['p']
         # img_speed[point['x'], point['y']] += point['s']
 
     return img_pressure, img_speed
@@ -57,13 +57,22 @@ def read(filename):
     max_x = max_y = 0
 
     for key in range(reader['x'].shape[1]):
-        x = np.round(reader['y'][0, key] / 24823 * (150))
-        y = np.round(reader['x'][0, key] / 22374 * (383))
+        x = np.round(reader['x'][0, key])
+        y = np.round(reader['y'][0, key])
         p = np.round(reader['p'][0, key] / 1024 * 255)
-        points.append({'x' : int(x), 'y': int(y), 'p': int(p)})
 
         max_x = x if x > max_x else max_x
         max_y = y if y > max_y else max_y
+
+        min_x = x if x < min_x else min_x
+        min_y = y if y < min_y else min_y
+
+    for key in range(reader['x'].shape[1]):
+        x = np.round( (reader['x'][0, key]-min_x) / (max_x-min_x) * 382)
+        y = 149 - np.round( (reader['y'][0, key]-min_y) / (max_y-min_y) * 149)
+        p = np.round(reader['p'][0, key] / 1024 * 255)
+
+        points.append({'x' : int(x), 'y': int(y), 'p': int(p)})
 
     return (points, max_x, max_y)
 
@@ -84,7 +93,11 @@ def main():
 
     for fn in os.listdir(PATH):
         points, max_x, max_y = read(P.join(PATH, fn))
-        import pdb; pdb.set_trace() 
+        im, _ = create_image(points, (150, 383)); 
+        fn = P.splitext(fn)[0]
+
+        imsave('biosecurid-online/%s-online.png' % fn, im)
+
 
         # points, max_i_s, min_i_s = add_velocity(points)
         # if min_s > min_i_s: min_s = min_i_s
@@ -106,11 +119,11 @@ def main():
     # print(imgs_p[0].max())
     # exit()
 
-    for i in range(len(imgs_p)):
-        # imgs_p[i] = 255 * (imgs_p[i]/imgs_p[i].max())
-        imsave('out/on-%010d.png' % i, (imgs_p[i])[global_min_x:global_max_x, global_min_y:global_max_y])
-        # imsave('out/on-%i-s.png' % i, imgs_s[i][global_min_x-10:global_max_x+10, global_min_y-10:global_max_y+10])
-        imsave('out/off-%010d.png' % i, (255-imgs_target[i])[global_min_x:global_max_x, global_min_y:global_max_y])
+    # for i in range(len(imgs_p)):
+    #     # imgs_p[i] = 255 * (imgs_p[i]/imgs_p[i].max())
+    #     imsave('out/on-%010d.png' % i, (imgs_p[i])[global_min_x:global_max_x, global_min_y:global_max_y])
+    #     # imsave('out/on-%i-s.png' % i, imgs_s[i][global_min_x-10:global_max_x+10, global_min_y-10:global_max_y+10])
+    #     imsave('out/off-%010d.png' % i, (255-imgs_target[i])[global_min_x:global_max_x, global_min_y:global_max_y])
 
         # imsave('out/on-%i.png' % i,
         #     np.array(Image.open('out/on-%i.png' % i).convert('L')))

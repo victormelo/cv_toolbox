@@ -1,5 +1,5 @@
 import matplotlib
-matplotlib.use('Agg')
+# matplotlib.use('Agg')
 # %% imports
 import matplotlib.pyplot as plt
 plt.rcParams['figure.figsize'] = (10.0, 8.0) # set default size of plots
@@ -16,8 +16,10 @@ import time
 import scipy
 import shutil
 import scipy.misc
+from scipy.misc import imsave
+import os.path as P
 
-model_path = "/home/vkslm/model.ckpt"
+model_path = "/home/vkslm/playground/weights-first-try"
 
 h = 150
 w = 383
@@ -198,47 +200,68 @@ optimizer = tf.train.AdamOptimizer(learning_rate).minimize(cost)
 # We create a session to use the graph
 sess = tf.Session()
 
-# %%
-# Fit all training data
-batch_size = 32
-n_epochs = 100
 
-batch_data, batch_label = load_dataset(batch_size, n_epochs)
-
-sess.run(tf.global_variables_initializer())
-sess.run(tf.local_variables_initializer())
-tf.train.start_queue_runners(sess=sess)
+ckpt = tf.train.get_checkpoint_state('/home/vkslm/playground/weights-first-try')
 saver = tf.train.Saver()
 
-exp_folder = 'results_'+time.strftime('%d_%b_%H-%M-%S')
-os.mkdir(exp_folder)
-checkpoint_path = os.path.join(exp_folder, 'model.ckpt')
-for epoch_i in range(n_epochs):
-    for batch_i in range(20000 // batch_size):
-        batch_data_flatten = tf.reshape(batch_data, [batch_size, h*w])
-        batch_label_flatten = tf.reshape(batch_label, [batch_size, h*w])
+# saver.restore(sess, ckpt.model_checkpoint_path)
+# new_saver = tf.train.import_meta_graph('/home/vkslm/playground/weights-first-try/model.ckpt-99.meta')
+saver.restore(sess, ckpt.model_checkpoint_path)
+from PIL import Image
+PATH = '/home/vkslm/playground/cv_toolbox/cv_toolbox/synthetic-signature/biosecurid-online/'
+for fn in os.listdir(PATH):
+    predict = Image.open(P.join(PATH, fn))
+    predict = np.array(predict)
+    predict = predict.flatten().reshape(1, predict.shape[0]*predict.shape[1])
+    predict = (np.array(predict, dtype='float')/255)
+    result = sess.run(y, feed_dict={x: predict})
+    result = result.reshape(result.shape[1:3])
+    imsave('biosecurid-online-inv/%s' % fn, 255-result)
 
-        batch_xs, batch_ys = sess.run([batch_data_flatten, batch_label_flatten])
-        sess.run(optimizer, feed_dict={x: batch_xs, y_true: batch_ys})
-        print((batch_i/(20000 // batch_size)))
-    print(epoch_i, sess.run(cost, feed_dict={x: batch_xs, y_true: batch_ys}))
-    saver.save(sess, checkpoint_path, global_step=epoch_i)
 
-    folder = exp_folder+'/%05d' % epoch_i
+# predict = Image.open('/home/vkslm/playground/datasets/IRONOFF-Subset/out/0000000000-on.png')
 
-    os.mkdir(folder)
-    # shutil.copy2('/home/vkslm/playground/index-vae.html', folder+'/index.html')
-    recon = sess.run(y, feed_dict={x: batch_xs, y_true: batch_ys})
-    for i in range(recon.shape[0]):
-        plt.subplot(311)
-        plt.imshow(recon[i].reshape((h,w)))
-        plt.subplot(312)
-        plt.imshow(batch_ys[i].reshape(h,w))
-        plt.subplot(313)
-        plt.imshow(batch_xs[i].reshape(h,w))
+# %%
+# Fit all training data
+# batch_size = 32
+# n_epochs = 100
 
-        filename = '%d.png' % (i)
+# batch_data, batch_label = load_dataset(batch_size, n_epochs)
 
-        filename = os.path.join(folder, filename)
-        plt.savefig(filename)
+# sess.run(tf.global_variables_initializer())
+# sess.run(tf.local_variables_initializer())
+# tf.train.start_queue_runners(sess=sess)
+# saver = tf.train.Saver()
+
+# exp_folder = 'results_'+time.strftime('%d_%b_%H-%M-%S')
+# os.mkdir(exp_folder)
+# checkpoint_path = os.path.join(exp_folder, 'model.ckpt')
+# for epoch_i in range(n_epochs):
+#     for batch_i in range(20000 // batch_size):
+#         batch_data_flatten = tf.reshape(batch_data, [batch_size, h*w])
+#         batch_label_flatten = tf.reshape(batch_label, [batch_size, h*w])
+
+#         batch_xs, batch_ys = sess.run([batch_data_flatten, batch_label_flatten])
+#         sess.run(optimizer, feed_dict={x: batch_xs, y_true: batch_ys})
+#         print((batch_i/(20000 // batch_size)))
+#     print(epoch_i, sess.run(cost, feed_dict={x: batch_xs, y_true: batch_ys}))
+#     saver.save(sess, checkpoint_path, global_step=epoch_i)
+
+#     folder = exp_folder+'/%05d' % epoch_i
+
+#     os.mkdir(folder)
+#     # shutil.copy2('/home/vkslm/playground/index-vae.html', folder+'/index.html')
+#     recon = sess.run(y, feed_dict={x: batch_xs, y_true: batch_ys})
+#     for i in range(recon.shape[0]):
+#         plt.subplot(311)
+#         plt.imshow(recon[i].reshape((h,w)))
+#         plt.subplot(312)
+#         plt.imshow(batch_ys[i].reshape(h,w))
+#         plt.subplot(313)
+#         plt.imshow(batch_xs[i].reshape(h,w))
+
+#         filename = '%d.png' % (i)
+
+#         filename = os.path.join(folder, filename)
+#         plt.savefig(filename)
 
