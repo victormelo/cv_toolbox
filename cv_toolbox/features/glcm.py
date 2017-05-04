@@ -1,10 +1,10 @@
 # encoding: utf-8
 
-from ..core.util import get_histogram
+from core.util import get_histogram
 import matplotlib.pyplot as plt
 from skimage.feature import greycomatrix
 import numpy as np
-import Image
+from PIL import Image
 from skimage.exposure import adjust_log
 
 def glcm(matrix, offset):
@@ -93,9 +93,9 @@ def main():
 
     plt.show()
 
-    print 'Figure a\n', fa
-    print 'Figure b\n', fb
-    print 'Figure c\n', fc
+    # print 'Figure a\n', fa
+    # print 'Figure b\n', fb
+    # print 'Figure c\n', fc
 
 
 def sglcm(matrix):

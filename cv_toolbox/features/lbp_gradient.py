@@ -1,6 +1,6 @@
 # encoding: utf-8
 
-from ..core.util import gradient
+from core.util import gradient
 import numpy as np
 from skimage.feature import local_binary_pattern
 from PIL import Image
@@ -20,7 +20,7 @@ def lbp_gradient(img, p, r):
 
 def main():
     img = np.array(Image.open('images/2-2-g-gray.PNG').convert('L')).astype('float')
-    print glbp(img).shape
+    # print glbp(img).shape
 
 
 if __name__ == '__main__':

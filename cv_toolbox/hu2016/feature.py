@@ -1,6 +1,6 @@
-from ..features.shog import shog
-from ..features.lbp_gradient import lbp_gradient
-from ..features.glcm import sglcm
+from features.shog import shog
+from features.lbp_gradient import lbp_gradient
+from features.glcm import sglcm
 import numpy as np
 from sklearn import preprocessing
 

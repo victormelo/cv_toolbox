@@ -1,6 +1,6 @@
 # encoding: utf-8
 
-from ..core.util import gradient, grid_image
+from core.util import gradient, grid_image
 import numpy as np
 from PIL import Image
 from math import floor
@@ -11,7 +11,6 @@ def shog(img):
     # 1 - Calculate first-order gradient image GI (x, y) for an input image,
     # then direction feature for every pixel.
     magnitude, angles = gradient(img)
-
     # convert angles to degrees between 0-180 (non-directional)
     # angles =  angles * (180 / np.pi) % 180
 
@@ -92,7 +91,6 @@ def main():
         # ]:
     plt.show()
     # fig.savefig('rect7.png', dpi=90, bbox_inches='tight')
-    print hog
 
 if __name__ == '__main__':
     main()
