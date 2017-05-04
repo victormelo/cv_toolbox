@@ -110,9 +110,8 @@ def main(args):
         # print("\n".join(f_negative_fns))
         # train a Linear SVM on the data
         model = ensemble.RandomForestClassifier(n_estimators=100, max_depth=10)
-        print('Data len: %d, labels len: %d' % (len(data), len(labels)))
         model.fit(data, labels)
-        summary = []
+        summary = {'genuine': [], 'skilled': [], 'random': []}
         for test_fn in test_fns_genuine:
             hist = compute_feature(test_fn)
 
@@ -120,7 +119,7 @@ def main(args):
             result = model.predict_proba(hist)
             neg, pos = result[0]
             prediction = neg <= 0.1
-            summary.append({'predicted': prediction, 'label': 1})
+            summary['genuine'].append({'predicted': prediction, 'label': 1})
 
         for test_fn in test_fns_skilled_forgery:
             hist = compute_feature(test_fn)
@@ -129,7 +128,7 @@ def main(args):
             result = model.predict_proba(hist)
             neg, pos = result[0]
             prediction = neg <= 0.1
-            summary.append({'predicted': prediction, 'label': 0})
+            summary['skilled'].append({'predicted': prediction, 'label': 0})
         
         for test_fn in test_fns_random_forgery:
             hist = compute_feature(test_fn)
@@ -138,10 +137,12 @@ def main(args):
             result = model.predict_proba(hist)
             neg, pos = result[0]
             prediction = neg <= 0.1
-            summary.append({'predicted': prediction, 'label': 0})
+            summary['random'].append({'predicted': prediction, 'label': 0})
         
         # print(summary)
-        print(u, stats(summary))
+        print('[genuine]', u, stats(summary['genuine']))
+        print('[skilled]', u, stats(summary['skilled']))
+        print('[random]', u, stats(summary['random']))
 
 if __name__ == "__main__":
     main(docopt(__doc__))
