@@ -62,4 +62,7 @@ target/
 #Ipython Notebook
 .ipynb_checkpoints
 
+# ignore datasets
+*.png
+*.jpg
 *.hwr
