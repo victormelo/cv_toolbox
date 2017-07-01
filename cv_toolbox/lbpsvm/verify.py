@@ -33,14 +33,23 @@ from sklearn import linear_model
 from sklearn.metrics import roc_curve, auc
 import matplotlib.pyplot as plt
 import shutil
-
-
+from sklearn import linear_model
+all_random_forgeries = []
 np.random.seed(seed=42)
 
 
 def file_output(filename):
     return open(filename, 'w')
 
+def result(probas, truth):
+    fpr, tpr, thresholds = roc_curve(truth, np.array(probas)[:, 1])
+    fnr = 1-tpr
+
+    arg = np.abs((fpr-fnr)).argmin()
+    print('fpr: %f - fnr: %f - th: %f' % (
+        fpr[arg],
+        fnr[arg],
+        thresholds[arg]))
 
 class TrainerThread(threading.Thread):
     def __init__(self, name, url, q):
@@ -70,7 +79,6 @@ def compute_feature(fn, cache_dir):
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     bfn = P.basename(fn).replace('.', '-')
     h5fn = P.join(cache_dir, '%s.h5' % bfn)
-    # import pdb; pdb.set_trace()
     error = False
     if P.exists(h5fn):
         try:
@@ -79,17 +87,19 @@ def compute_feature(fn, cache_dir):
         except:
             error = True
     
-    if not P.exists(h5fn) or error:
-        features = extract_feature_vector(gray)
-        dn = P.dirname(h5fn)
-        if not P.exists(dn):
-            os.makedirs(dn)
+    # if not P.exists(h5fn) or error:
+    #     features = extract_feature_vector(gray)
+    #     dn = P.dirname(h5fn)
+    #     if not P.exists(dn):
+    #         os.makedirs(dn)
 
-        h5f = h5py.File(h5fn, 'w')
-        h5f.create_dataset('features', data=features)
-    h5f.close()
-
-    return features
+    #     h5f = h5py.File(h5fn, 'w')
+    #     h5f.create_dataset('features', data=features)
+    # h5f.close()
+    try:
+        return features
+    except:
+        print(h5fn)
 
 def stats(summary):
     right = 0
@@ -141,7 +151,6 @@ class UserEvaluatorThread(threading.Thread):
             self.labels.append(0)
             self.data.append(hist)
 
-        self.model.fit(self.data, self.labels)
         
         X = []
         ytrue = []
@@ -159,11 +168,13 @@ class UserEvaluatorThread(threading.Thread):
             X.append(data)
             ytrue.append(0)
 
+        self.model.fit(self.data, self.labels)
         probas = self.model.predict_proba(X)
         for i, proba in enumerate(probas):
             self.results[self.user]['probas'].append(proba)
             self.results[self.user]['truth'].append(ytrue[i])
-
+        
+        # result(self.results[self.user]['probas'], self.results[self.user]['truth'])
         # self.summary['random'].append({'predicted': prediction, 'label': 0})
         # prediction = predict(self.model, data)
         # self.summary['skilled'].append({'predicted': prediction, 'label': 0})
@@ -242,7 +253,8 @@ def evaluate(number_enrolment, sig_type, dataset_folder, total_authors, negative
                 # to the second session.
                 pattern_positive = ['%ss0001*-%s.png' % (u, sig_type),
                                     '%ss0002*-%s.png' % (u, options['synth_sig_type'])]
-                pattern_to_exclude = ['%ss0001*-%s.png' % (u, sig_type), '%ss0002*-%s.png' % (u, sig_type)]
+            
+            pattern_to_exclude = ['%ss0001*-%s.png' % (u, sig_type), '%ss0002*-%s.png' % (u, sig_type)]
 
         positive_fns = []
         for pattern in pattern_positive:
@@ -265,7 +277,7 @@ def evaluate(number_enrolment, sig_type, dataset_folder, total_authors, negative
             ru = 'u%04d' % random_forgery_user
             genuine_folder = P.join(ru, 'g')
             test_fns_random_forgery.extend(glob.glob(P.join(P.join(dataset_folder, genuine_folder), pattern_random), recursive=True))
-
+        
         # initialize the local binary patterns descriptor along with
         # the data and label lists
         data = []
@@ -276,11 +288,12 @@ def evaluate(number_enrolment, sig_type, dataset_folder, total_authors, negative
         np.random.shuffle(f_negative_fns)
         f_negative_fns = f_negative_fns[:number_negative]
 
-        # sanity_check(u, positive_fns, f_negative_fns, test_fns_genuine, test_fns_random_forgery, test_fns_skilled_forgery)
+        sanity_check(u, positive_fns, f_negative_fns, test_fns_genuine, test_fns_random_forgery, test_fns_skilled_forgery)
         # print("\n".join(positive_fns))
         # print("\n".join(f_negative_fns))
         # train a Linear SVM on the data
-        model = ensemble.RandomForestClassifier(n_estimators=100, max_depth=10)
+        model = ensemble.RandomForestClassifier(n_estimators=30, max_depth=3)
+
         evaluator = UserEvaluatorThread(u,
             model, 
             positive_fns, 
@@ -315,15 +328,8 @@ def evaluate(number_enrolment, sig_type, dataset_folder, total_authors, negative
     # assert len(results['probas']) == (90 * 66)
 
     probas, truth = flatten_results(results)
-    fpr, tpr, thresholds = roc_curve(truth, np.array(probas)[:, 1])
-    fnr = 1-tpr
-
-    arg = np.abs((fpr-fnr)).argmin()
-    print('fpr: %f - fnr: %f - th: %f' % (
-        fpr[arg],
-        fnr[arg],
-        thresholds[arg]))
-
+    result(probas, truth)
+    
 
 def main(args):
 # set(glob("*")) - set(glob("eph"))
