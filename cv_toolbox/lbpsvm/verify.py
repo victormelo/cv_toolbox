@@ -8,21 +8,20 @@ Options:
   --cache-dir=<s>                directory to use for cache
   --synth-sig-type=<s>            the sig type to use as real in case of mixed set
   --mixed-mode=<s>            i, ii or iii.. refer to the paper [default: i]
-  
+
 
 """
 
-from lbp import LocalBinaryPatterns
+# from lbp import LocalBinaryPatterns
 from sklearn.svm import LinearSVC
-from imutils import paths
 import argparse
-import cv2
+# import cv2
 from docopt import docopt
-from core.util import gradient
-from features.shog import shog
+# from core.util import gradient
+# from features.shog import shog
 from sklearn import preprocessing
 from sklearn import svm, ensemble
-from hu2016.feature import extract_feature_vector
+# from hu2016.feature import extract_feature_vector
 import glob
 import os.path as P
 import os
@@ -35,7 +34,7 @@ import matplotlib.pyplot as plt
 import shutil
 from sklearn import linear_model
 all_random_forgeries = []
-np.random.seed(seed=42)
+# np.random.seed(seed=42)
 
 
 def file_output(filename):
@@ -75,8 +74,8 @@ def pause():
 
 
 def compute_feature(fn, cache_dir):
-    image = cv2.imread(fn)
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    # image = cv2.imread(fn)
+    # gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     bfn = P.basename(fn).replace('.', '-')
     h5fn = P.join(cache_dir, '%s.h5' % bfn)
     error = False
@@ -86,7 +85,7 @@ def compute_feature(fn, cache_dir):
             features = h5f['features'][:]
         except:
             error = True
-    
+
     # if not P.exists(h5fn) or error:
     #     features = extract_feature_vector(gray)
     #     dn = P.dirname(h5fn)
@@ -130,7 +129,7 @@ class UserEvaluatorThread(threading.Thread):
         self.data = []
         self.options = options
         self.results = results
-    
+
     def run(self):
         for positive_fn in self.positive_fns:
             # load the image, convert it to grayscale, and describe it
@@ -151,14 +150,14 @@ class UserEvaluatorThread(threading.Thread):
             self.labels.append(0)
             self.data.append(hist)
 
-        
+
         X = []
         ytrue = []
         for test_fn in self.test_fns_genuine:
             data = compute_feature(test_fn, self.options['cache_dir'])
             X.append(data)
             ytrue.append(1)
-            
+
         for test_fn in self.test_fns_skilled_forgery:
             data = compute_feature(test_fn, self.options['cache_dir'])
             X.append(data)
@@ -173,7 +172,7 @@ class UserEvaluatorThread(threading.Thread):
         for i, proba in enumerate(probas):
             self.results[self.user]['probas'].append(proba)
             self.results[self.user]['truth'].append(ytrue[i])
-        
+
         # result(self.results[self.user]['probas'], self.results[self.user]['truth'])
         # self.summary['random'].append({'predicted': prediction, 'label': 0})
         # prediction = predict(self.model, data)
@@ -201,15 +200,15 @@ def sanity_copy(foldername, sanity_path, fns):
     path = P.join(sanity_path, foldername)
     if(P.exists(path)):
         shutil.rmtree(path)
-        
+
     os.makedirs(path)
-    
+
     for fn in fns:
         shutil.copy2(fn, path)
 
 
 def sanity_check(u, positive_fns, f_negative_fns, test_fns_genuine, test_fns_random_forgery, test_fns_skilled_forgery):
-    path = '/home/vkslm/playground/sanity-check'
+    path = '/home/victor/playground/sanity-check'
 
     sanity_path = P.join(path, u)
     sanity_copy('positive', sanity_path, positive_fns)
@@ -253,7 +252,7 @@ def evaluate(number_enrolment, sig_type, dataset_folder, total_authors, negative
                 # to the second session.
                 pattern_positive = ['%ss0001*-%s.png' % (u, sig_type),
                                     '%ss0002*-%s.png' % (u, options['synth_sig_type'])]
-            
+
             pattern_to_exclude = ['%ss0001*-%s.png' % (u, sig_type), '%ss0002*-%s.png' % (u, sig_type)]
 
         positive_fns = []
@@ -265,7 +264,7 @@ def evaluate(number_enrolment, sig_type, dataset_folder, total_authors, negative
         if pattern_to_exclude:
             to_exclude_fns = []
             for pattern in pattern_to_exclude:
-               to_exclude_fns.extend(glob.glob(P.join(P.join(dataset_folder, genuine_folder), pattern)))            
+               to_exclude_fns.extend(glob.glob(P.join(P.join(dataset_folder, genuine_folder), pattern)))
             test_fns_genuine = list(set(all_positive_fns) - set(to_exclude_fns))
         else:
             test_fns_genuine = list(set(all_positive_fns) - set(positive_fns))
@@ -277,29 +276,32 @@ def evaluate(number_enrolment, sig_type, dataset_folder, total_authors, negative
             ru = 'u%04d' % random_forgery_user
             genuine_folder = P.join(ru, 'g')
             test_fns_random_forgery.extend(glob.glob(P.join(P.join(dataset_folder, genuine_folder), pattern_random), recursive=True))
-        
+
         # initialize the local binary patterns descriptor along with
         # the data and label lists
         data = []
         labels = []
 
         f_negative_fns = negative_fns.copy()
-        np.random.seed(seed=42)
         np.random.shuffle(f_negative_fns)
         f_negative_fns = f_negative_fns[:number_negative]
 
-        sanity_check(u, positive_fns, f_negative_fns, test_fns_genuine, test_fns_random_forgery, test_fns_skilled_forgery)
+        # sanity_check(u, positive_fns, f_negative_fns, test_fns_genuine, test_fns_random_forgery, test_fns_skilled_forgery)
         # print("\n".join(positive_fns))
         # print("\n".join(f_negative_fns))
         # train a Linear SVM on the data
-        model = ensemble.RandomForestClassifier(n_estimators=30, max_depth=3)
-
+        # model = ensemble.RandomForestClassifier(n_estimators=30, max_depth=3)
+        svm = LinearSVC()
+        from sklearn.calibration import CalibratedClassifierCV
+        model = CalibratedClassifierCV(svm)
+        # model = linear_model.LogisticRegression()
+        # y_proba = clf.predict_proba(X_test)
         evaluator = UserEvaluatorThread(u,
-            model, 
-            positive_fns, 
-            f_negative_fns, 
-            test_fns_genuine, 
-            test_fns_skilled_forgery, 
+            model,
+            positive_fns,
+            f_negative_fns,
+            test_fns_genuine,
+            test_fns_skilled_forgery,
             test_fns_random_forgery,
             options,
             results)
@@ -329,7 +331,7 @@ def evaluate(number_enrolment, sig_type, dataset_folder, total_authors, negative
 
     probas, truth = flatten_results(results)
     result(probas, truth)
-    
+
 
 def main(args):
 # set(glob("*")) - set(glob("eph"))
