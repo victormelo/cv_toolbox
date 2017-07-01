@@ -8,7 +8,7 @@ Options:
   --cache-dir=<s>                directory to use for cache
   --synth-sig-type=<s>            the sig type to use as real in case of mixed set
   --mixed-mode=<s>            i, ii or iii.. refer to the paper [default: i]
-  
+
 
 """
 
@@ -19,10 +19,10 @@ import argparse
 import cv2
 from docopt import docopt
 from core.util import gradient
+from hu2016.feature import extract_feature_vector
 from features.shog import shog
 from sklearn import preprocessing
 from sklearn import svm, ensemble
-from hu2016.feature import extract_feature_vector
 import glob
 import os.path as P
 import os
@@ -78,7 +78,7 @@ def compute_feature(fn, cache_dir):
             features = h5f['features'][:]
         except:
             error = True
-    
+
     if not P.exists(h5fn) or error:
         features = extract_feature_vector(gray)
         dn = P.dirname(h5fn)
@@ -120,7 +120,7 @@ class UserEvaluatorThread(threading.Thread):
         self.data = []
         self.options = options
         self.results = results
-    
+
     def run(self):
         for positive_fn in self.positive_fns:
             # load the image, convert it to grayscale, and describe it
@@ -142,28 +142,51 @@ class UserEvaluatorThread(threading.Thread):
             self.data.append(hist)
 
         self.model.fit(self.data, self.labels)
-        
-        X = []
-        ytrue = []
+
+        X_skilled = []
+        X_random = []
+        ytrue_skilled = []
+        ytrue_random = []
         for test_fn in self.test_fns_genuine:
             data = compute_feature(test_fn, self.options['cache_dir'])
-            X.append(data)
-            ytrue.append(1)
-            
+            X_skilled.append(data)
+            X_random.append(data)
+            ytrue_skilled.append(1)
+            ytrue_random.append(1)
+
         for test_fn in self.test_fns_skilled_forgery:
             data = compute_feature(test_fn, self.options['cache_dir'])
-            X.append(data)
-            ytrue.append(0)
+            X_skilled.append(data)
+            ytrue_skilled.append(0)
+
         for test_fn in self.test_fns_random_forgery:
             data = compute_feature(test_fn, self.options['cache_dir'])
-            X.append(data)
-            ytrue.append(0)
+            X_random.append(data)
+            ytrue_random.append(0)
+        probas_skilled = self.model.predict_proba(X_skilled)
+        probas_random = self.model.predict_proba(X_random)
 
-        probas = self.model.predict_proba(X)
-        for i, proba in enumerate(probas):
-            self.results[self.user]['probas'].append(proba)
-            self.results[self.user]['truth'].append(ytrue[i])
+        for i, proba in enumerate(probas_skilled):
+            self.results[self.user]['probas_skilled'].append(proba)
+            self.results[self.user]['truth_skilled'].append(ytrue_skilled[i])
 
+        for i, proba in enumerate(probas_random):
+            self.results[self.user]['probas_random'].append(proba)
+            self.results[self.user]['truth_random'].append(ytrue_random[i])
+        print('\n Partial report')
+        def report(probas, truth):
+            fpr, tpr, thresholds = roc_curve(truth, np.array(probas)[:, 1])
+            fnr = 1-tpr
+            arg = np.abs((fpr-fnr)).argmin()
+            print('fpr: %f - fnr: %f - th: %f' % (
+                fpr[arg],
+                fnr[arg],
+                thresholds[arg]))
+        probas_skilled, truth_skilled = flatten_results(self.results, typee='skilled')
+        report(probas_skilled, truth_skilled)
+        probas_random, truth_random = flatten_results(self.results, typee='random')
+        report(probas_random, truth_random)
+        print('**********')
         # self.summary['random'].append({'predicted': prediction, 'label': 0})
         # prediction = predict(self.model, data)
         # self.summary['skilled'].append({'predicted': prediction, 'label': 0})
@@ -176,13 +199,13 @@ class UserEvaluatorThread(threading.Thread):
         # print('[skilled]', stats(self.summary['skilled']))
         # print('[random]', stats(self.summary['random']))
 
-def flatten_results(results):
+def flatten_results(results, typee='skilled'):
         probas = []
         truth = []
 
         for key in results.keys():
-            probas += results[key]['probas']
-            truth += results[key]['truth']
+            probas += results[key]['probas_%s' % typee]
+            truth += results[key]['truth_%s' % typee]
 
         return probas, truth
 
@@ -190,15 +213,15 @@ def sanity_copy(foldername, sanity_path, fns):
     path = P.join(sanity_path, foldername)
     if(P.exists(path)):
         shutil.rmtree(path)
-        
+
     os.makedirs(path)
-    
+
     for fn in fns:
         shutil.copy2(fn, path)
 
 
 def sanity_check(u, positive_fns, f_negative_fns, test_fns_genuine, test_fns_random_forgery, test_fns_skilled_forgery):
-    path = '/home/vkslm/playground/sanity-check'
+    path = '/home/victor/playground/sanity-check'
 
     sanity_path = P.join(path, u)
     sanity_copy('positive', sanity_path, positive_fns)
@@ -212,7 +235,7 @@ def evaluate(number_enrolment, sig_type, dataset_folder, total_authors, negative
 
     for user in range(1, number_enrolment+1):
         u = 'u%04d' % user
-        results[u] = {'probas': [], 'truth': []}
+        results[u] = {'probas_skilled': [], 'truth_skilled': [], 'probas_random': [], 'truth_random': []}
         pattern_all = '%s*-%s.png' % (u, sig_type)
         pattern_random = '*s0001*1g*-%s.png' % sig_type
         genuine_folder = P.join(u, 'g')
@@ -242,7 +265,7 @@ def evaluate(number_enrolment, sig_type, dataset_folder, total_authors, negative
                 # to the second session.
                 pattern_positive = ['%ss0001*-%s.png' % (u, sig_type),
                                     '%ss0002*-%s.png' % (u, options['synth_sig_type'])]
-                pattern_to_exclude = ['%ss0001*-%s.png' % (u, sig_type), '%ss0002*-%s.png' % (u, sig_type)]
+            pattern_to_exclude = ['%ss0001*-%s.png' % (u, sig_type), '%ss0002*-%s.png' % (u, sig_type)]
 
         positive_fns = []
         for pattern in pattern_positive:
@@ -253,7 +276,7 @@ def evaluate(number_enrolment, sig_type, dataset_folder, total_authors, negative
         if pattern_to_exclude:
             to_exclude_fns = []
             for pattern in pattern_to_exclude:
-               to_exclude_fns.extend(glob.glob(P.join(P.join(dataset_folder, genuine_folder), pattern)))            
+               to_exclude_fns.extend(glob.glob(P.join(P.join(dataset_folder, genuine_folder), pattern)))
             test_fns_genuine = list(set(all_positive_fns) - set(to_exclude_fns))
         else:
             test_fns_genuine = list(set(all_positive_fns) - set(positive_fns))
@@ -281,12 +304,13 @@ def evaluate(number_enrolment, sig_type, dataset_folder, total_authors, negative
         # print("\n".join(f_negative_fns))
         # train a Linear SVM on the data
         model = ensemble.RandomForestClassifier(n_estimators=100, max_depth=10)
+        # model = ensemble.(n_estimators=100, max_depth=10)
         evaluator = UserEvaluatorThread(u,
-            model, 
-            positive_fns, 
-            f_negative_fns, 
-            test_fns_genuine, 
-            test_fns_skilled_forgery, 
+            model,
+            positive_fns,
+            f_negative_fns,
+            test_fns_genuine,
+            test_fns_skilled_forgery,
             test_fns_random_forgery,
             options,
             results)
@@ -313,16 +337,19 @@ def evaluate(number_enrolment, sig_type, dataset_folder, total_authors, negative
         # print('[skilled]', stats(summary['skilled']))
         # print('[random]', stats(summary['random']))
     # assert len(results['probas']) == (90 * 66)
+    def report(probas, truth):
+        fpr, tpr, thresholds = roc_curve(truth, np.array(probas)[:, 1])
+        fnr = 1-tpr
+        arg = np.abs((fpr-fnr)).argmin()
+        print('fpr: %f - fnr: %f - th: %f' % (
+            fpr[arg],
+            fnr[arg],
+            thresholds[arg]))
+    probas_skilled, truth_skilled = flatten_results(results, typee='skilled')
+    report(probas_skilled, truth_skilled)
+    probas_random, truth_random = flatten_results(results, typee='random')
+    report(probas_random, truth_random)
 
-    probas, truth = flatten_results(results)
-    fpr, tpr, thresholds = roc_curve(truth, np.array(probas)[:, 1])
-    fnr = 1-tpr
-
-    arg = np.abs((fpr-fnr)).argmin()
-    print('fpr: %f - fnr: %f - th: %f' % (
-        fpr[arg],
-        fnr[arg],
-        thresholds[arg]))
 
 
 def main(args):

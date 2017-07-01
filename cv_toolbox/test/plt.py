@@ -27,7 +27,7 @@ class Annotate(object):
         self.filename = filename
 
     def on_press_key(self, event):
-        print('press', event.key)
+        print(('press', event.key))
         if event.key == 'r':
             plt.imshow(self.img)
             plt.draw()
@@ -35,18 +35,18 @@ class Annotate(object):
             plt.imsave('result-'+self.filename, self.imgcp)
 
     def on_press(self, event):
-        print 'press'
+        print ('press')
         self.x0 = event.xdata
         self.y0 = event.ydata
 
     def on_release(self, event):
-        print 'release'
+        print ('release')
         self.imgcp = np.array(self.img).copy()
 
         self.x1 = event.xdata
         self.y1 = event.ydata
         # npimg = np.array(img)
-        # print npimg.shape
+        # print (npimg.shape)
         y0 = int(min(self.x0, self.x1))
         y1 = int(max(self.x0, self.x1))
         x0 = int(min(self.y0, self.y1))
