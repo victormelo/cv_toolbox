@@ -12,15 +12,12 @@ Options:
 
 """
 
-from lbp import LocalBinaryPatterns
 from sklearn.svm import LinearSVC
-from imutils import paths
 import argparse
-import cv2
 from docopt import docopt
-from core.util import gradient
-from hu2016.feature import extract_feature_vector
-from features.shog import shog
+# from core.util import gradient
+# from hu2016.feature import extract_feature_vector
+# from features.shog import shog
 from sklearn import preprocessing
 from sklearn import svm, ensemble
 import glob
@@ -66,11 +63,10 @@ def pause():
 
 
 def compute_feature(fn, cache_dir):
-    image = cv2.imread(fn)
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    # image = cv2.imread(fn)
+    # gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     bfn = P.basename(fn).replace('.', '-')
     h5fn = P.join(cache_dir, '%s.h5' % bfn)
-    # import pdb; pdb.set_trace()
     error = False
     if P.exists(h5fn):
         try:
@@ -79,17 +75,19 @@ def compute_feature(fn, cache_dir):
         except:
             error = True
 
-    if not P.exists(h5fn) or error:
-        features = extract_feature_vector(gray)
-        dn = P.dirname(h5fn)
-        if not P.exists(dn):
-            os.makedirs(dn)
+    # if not P.exists(h5fn) or error:
+    #     features = extract_feature_vector(gray)
+    #     dn = P.dirname(h5fn)
+    #     if not P.exists(dn):
+    #         os.makedirs(dn)
 
-        h5f = h5py.File(h5fn, 'w')
-        h5f.create_dataset('features', data=features)
-    h5f.close()
-
-    return features
+    #     h5f = h5py.File(h5fn, 'w')
+    #     h5f.create_dataset('features', data=features)
+    # h5f.close()
+    try:
+        return features
+    except:
+        print(h5fn)
 
 def stats(summary):
     right = 0
@@ -173,20 +171,7 @@ class UserEvaluatorThread(threading.Thread):
         for i, proba in enumerate(probas_random):
             self.results[self.user]['probas_random'].append(proba)
             self.results[self.user]['truth_random'].append(ytrue_random[i])
-        print('\n Partial report')
-        def report(probas, truth):
-            fpr, tpr, thresholds = roc_curve(truth, np.array(probas)[:, 1])
-            fnr = 1-tpr
-            arg = np.abs((fpr-fnr)).argmin()
-            print('fpr: %f - fnr: %f - th: %f' % (
-                fpr[arg],
-                fnr[arg],
-                thresholds[arg]))
-        probas_skilled, truth_skilled = flatten_results(self.results, typee='skilled')
-        report(probas_skilled, truth_skilled)
-        probas_random, truth_random = flatten_results(self.results, typee='random')
-        report(probas_random, truth_random)
-        print('**********')
+
         # self.summary['random'].append({'predicted': prediction, 'label': 0})
         # prediction = predict(self.model, data)
         # self.summary['skilled'].append({'predicted': prediction, 'label': 0})
@@ -303,7 +288,11 @@ def evaluate(number_enrolment, sig_type, dataset_folder, total_authors, negative
         # print("\n".join(positive_fns))
         # print("\n".join(f_negative_fns))
         # train a Linear SVM on the data
-        model = ensemble.RandomForestClassifier(n_estimators=100, max_depth=10)
+        # model = ensemble.RandomForestClassifier(n_estimators=100, max_depth=10)
+        svm = LinearSVC()
+        from sklearn.calibration import CalibratedClassifierCV
+        model = CalibratedClassifierCV(svm)
+
         # model = ensemble.(n_estimators=100, max_depth=10)
         evaluator = UserEvaluatorThread(u,
             model,
