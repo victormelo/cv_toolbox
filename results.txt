@@ -1,0 +1,23 @@
+mixed i
+Skilled
+fpr: 0.232407 - fnr: 0.231944 - th: 0.547373
+Random
+fpr: 0.099471 - fnr: 0.101389 - th: 0.488548
+
+mixed ii
+Skilled
+fpr: 0.198148 - fnr: 0.198611 - th: 0.670324
+Random
+fpr: 0.074603 - fnr: 0.075000 - th: 0.590775
+
+mixed iii s
+Skilled
+fpr: 0.201852 - fnr: 0.204167 - th: 0.665274
+Random
+fpr: 0.085979 - fnr: 0.086111 - th: 0.580110
+
+mixed iii s2
+Skilled
+fpr: 0.255556 - fnr: 0.255556 - th: 0.661843
+Random
+fpr: 0.099735 - fnr: 0.100000 - th: 0.593386

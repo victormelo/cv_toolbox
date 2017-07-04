@@ -130,7 +130,7 @@ class UserEvaluatorThread(threading.Thread):
         self.options = options
         self.results = results
 
-    def run(self):
+    def run(self, skilled=True):
         for positive_fn in self.positive_fns:
             # load the image, convert it to grayscale, and describe it
             hist = compute_feature(positive_fn, self.options['cache_dir'])
@@ -141,8 +141,7 @@ class UserEvaluatorThread(threading.Thread):
             self.labels.append(1)
             self.data.append(hist)
 
-        # for negative_fn in self.negative_fns:
-        for negative_fn in self.test_fns_random_forgery:
+        for negative_fn in self.negative_fns:
             # load the image, convert it to grayscale, and describe it
             hist = compute_feature(negative_fn, self.options['cache_dir'])
 
@@ -159,15 +158,16 @@ class UserEvaluatorThread(threading.Thread):
             data = compute_feature(test_fn, self.options['cache_dir'])
             X.append(data)
             ytrue.append(1)
-
-        for test_fn in self.test_fns_skilled_forgery:
-            data = compute_feature(test_fn, self.options['cache_dir'])
-            X.append(data)
-            ytrue.append(0)
-        # for test_fn in self.test_fns_random_forgery:
-        #     data = compute_feature(test_fn, self.options['cache_dir'])
-        #     X.append(data)
-        #     ytrue.append(0)
+        if skilled:
+            for test_fn in self.test_fns_skilled_forgery:
+                data = compute_feature(test_fn, self.options['cache_dir'])
+                X.append(data)
+                ytrue.append(0)
+        else:
+            for test_fn in self.test_fns_random_forgery:
+                data = compute_feature(test_fn, self.options['cache_dir'])
+                X.append(data)
+                ytrue.append(0)
 
         probas = self.model.predict_proba(X)
 
@@ -219,98 +219,105 @@ def sanity_check(u, positive_fns, f_negative_fns, test_fns_genuine, test_fns_ran
     sanity_copy('test_rforgery', sanity_path, test_fns_random_forgery)
     sanity_copy('test_sforgery', sanity_path, test_fns_skilled_forgery)
 
-def evaluate(number_enrolment, sig_type, dataset_folder, total_authors, negative_fns, number_negative, options, args):
+def evaluate(number_enrolment, sig_type, dataset_folder, total_authors, negative_fns, number_negative, options, args, skilled=True):
     results = {}
 
-    for user in range(1, number_enrolment+1):
-        u = 'u%04d' % user
-        results[u] = {'probas': [], 'truth': []}
-        pattern_all = '%s*-%s.png' % (u, sig_type)
-        pattern_random = '*s0001*1g*-%s.png' % sig_type
-        genuine_folder = P.join(u, 'g')
-        forgery_folder = P.join(u, 'f')
-        pattern_to_exclude = None
-        if args['multi']:
-            # first signature of each ession of user 00001
-            pattern_positive = ['%s*1g-%s.png' % (u, sig_type)]
-        elif args['mixed']:
-            # i) 4 real samples belonging to the
-            # first acquisition session (as in experiment 1 - mono
-            # session), ii)  and iii) 4 real samples belonging
-            # to the first session plus 4 synthetic samples belonging
-            # to the second session.
-            if options['mixed_mode'] == 'i':
-                 # 4 real samples belonging to the first acquisition session
-                pattern_positive = ['%ss0001*-%s.png' % (u, sig_type)]
-
-            elif options['mixed_mode'] == 'ii':
-                # 8 real samples belonging to the first and the second sessions,
-                pattern_positive = ['%ss0001*-%s.png' % (u, sig_type),
-                                    '%ss0002*-%s.png' % (u, sig_type)]
-
-            elif options['mixed_mode'] == 'iii':
-                # 4 real samples belonging
+    for typ in [True, False]:
+        for user in range(1, number_enrolment+1):
+            u = 'u%04d' % user
+            results[u] = {'probas': [], 'truth': []}
+            pattern_all = '%s*-%s.png' % (u, sig_type)
+            pattern_random = '*s0001*1g*-%s.png' % sig_type
+            genuine_folder = P.join(u, 'g')
+            forgery_folder = P.join(u, 'f')
+            pattern_to_exclude = None
+            if args['multi']:
+                # first signature of each ession of user 00001
+                pattern_positive = ['%s*1g-%s.png' % (u, sig_type)]
+            elif args['mixed']:
+                # i) 4 real samples belonging to the
+                # first acquisition session (as in experiment 1 - mono
+                # session), ii)  and iii) 4 real samples belonging
                 # to the first session plus 4 synthetic samples belonging
                 # to the second session.
-                pattern_positive = ['%ss0001*-%s.png' % (u, sig_type),
-                                    '%ss0002*-%s.png' % (u, options['synth_sig_type'])]
+                if options['mixed_mode'] == 'i':
+                     # 4 real samples belonging to the first acquisition session
+                    pattern_positive = ['%ss0001*-%s.png' % (u, sig_type)]
 
-            pattern_to_exclude = ['%ss0001*-%s.png' % (u, sig_type), '%ss0002*-%s.png' % (u, sig_type)]
+                elif options['mixed_mode'] == 'ii':
+                    # 8 real samples belonging to the first and the second sessions,
+                    pattern_positive = ['%ss0001*-%s.png' % (u, sig_type),
+                                        '%ss0002*-%s.png' % (u, sig_type)]
 
-        positive_fns = []
-        for pattern in pattern_positive:
-           positive_fns.extend(glob.glob(P.join(P.join(dataset_folder, genuine_folder), pattern)))
+                elif options['mixed_mode'] == 'iii':
+                    # 4 real samples belonging
+                    # to the first session plus 4 synthetic samples belonging
+                    # to the second session.
+                    pattern_positive = ['%ss0001*-%s.png' % (u, sig_type),
+                                        '%ss0002*-%s.png' % (u, options['synth_sig_type'])]
 
-        all_positive_fns = glob.glob(P.join(P.join(dataset_folder, genuine_folder), pattern_all))
+                pattern_to_exclude = ['%ss0001*-%s.png' % (u, sig_type), '%ss0002*-%s.png' % (u, sig_type)]
 
-        if pattern_to_exclude:
-            to_exclude_fns = []
-            for pattern in pattern_to_exclude:
-               to_exclude_fns.extend(glob.glob(P.join(P.join(dataset_folder, genuine_folder), pattern)))
-            test_fns_genuine = list(set(all_positive_fns) - set(to_exclude_fns))
+            positive_fns = []
+            for pattern in pattern_positive:
+               positive_fns.extend(glob.glob(P.join(P.join(dataset_folder, genuine_folder), pattern)))
+
+            all_positive_fns = glob.glob(P.join(P.join(dataset_folder, genuine_folder), pattern_all))
+
+            if pattern_to_exclude:
+                to_exclude_fns = []
+                for pattern in pattern_to_exclude:
+                   to_exclude_fns.extend(glob.glob(P.join(P.join(dataset_folder, genuine_folder), pattern)))
+                test_fns_genuine = list(set(all_positive_fns) - set(to_exclude_fns))
+            else:
+                test_fns_genuine = list(set(all_positive_fns) - set(positive_fns))
+
+            all_fns = glob.glob(P.join(P.join(dataset_folder, genuine_folder), pattern_all))
+            test_fns_skilled_forgery = glob.glob(P.join(P.join(dataset_folder, forgery_folder), pattern_all))
+            test_fns_random_forgery = []
+            for random_forgery_user in range(number_enrolment+1, total_authors+1):
+                ru = 'u%04d' % random_forgery_user
+                genuine_folder = P.join(ru, 'g')
+                test_fns_random_forgery.extend(glob.glob(P.join(P.join(dataset_folder, genuine_folder), pattern_random), recursive=True))
+
+            # initialize the local binary patterns descriptor along with
+            # the data and label lists
+            data = []
+            labels = []
+
+            f_negative_fns = negative_fns.copy()
+            np.random.shuffle(f_negative_fns)
+            f_negative_fns = f_negative_fns[:number_negative]
+
+            # sanity_check(u, positive_fns, f_negative_fns, test_fns_genuine, test_fns_random_forgery, test_fns_skilled_forgery)
+            # print("\n".join(positive_fns))
+            # print("\n".join(f_negative_fns))
+            # train a Linear SVM on the data
+            # model = ensemble.RandomForestClassifier(n_estimators=30, max_depth=3)
+            svm = LinearSVC()
+            from sklearn.calibration import CalibratedClassifierCV
+            model = CalibratedClassifierCV(svm)
+            # model = linear_model.LogisticRegression()
+            # y_proba = clf.predict_proba(X_test)
+            evaluator = UserEvaluatorThread(u,
+                model,
+                positive_fns,
+                f_negative_fns,
+                test_fns_genuine,
+                test_fns_skilled_forgery,
+                test_fns_random_forgery,
+                options,
+                results)
+            evaluator.run(skilled=typ)
+
+            print(len(results), end='\r')
+            
+        if(typ):
+            print('Skilled')
         else:
-            test_fns_genuine = list(set(all_positive_fns) - set(positive_fns))
-
-        all_fns = glob.glob(P.join(P.join(dataset_folder, genuine_folder), pattern_all))
-        test_fns_skilled_forgery = glob.glob(P.join(P.join(dataset_folder, forgery_folder), pattern_all))
-        test_fns_random_forgery = []
-        for random_forgery_user in range(number_enrolment+1, total_authors+1):
-            ru = 'u%04d' % random_forgery_user
-            genuine_folder = P.join(ru, 'g')
-            test_fns_random_forgery.extend(glob.glob(P.join(P.join(dataset_folder, genuine_folder), pattern_random), recursive=True))
-
-        # initialize the local binary patterns descriptor along with
-        # the data and label lists
-        data = []
-        labels = []
-
-        f_negative_fns = negative_fns.copy()
-        np.random.shuffle(f_negative_fns)
-        f_negative_fns = f_negative_fns[:number_negative]
-
-        # sanity_check(u, positive_fns, f_negative_fns, test_fns_genuine, test_fns_random_forgery, test_fns_skilled_forgery)
-        # print("\n".join(positive_fns))
-        # print("\n".join(f_negative_fns))
-        # train a Linear SVM on the data
-        # model = ensemble.RandomForestClassifier(n_estimators=30, max_depth=3)
-        svm = LinearSVC()
-        from sklearn.calibration import CalibratedClassifierCV
-        model = CalibratedClassifierCV(svm)
-        # model = linear_model.LogisticRegression()
-        # y_proba = clf.predict_proba(X_test)
-        evaluator = UserEvaluatorThread(u,
-            model,
-            positive_fns,
-            f_negative_fns,
-            test_fns_genuine,
-            test_fns_skilled_forgery,
-            test_fns_random_forgery,
-            options,
-            results)
-        evaluator.run()
-
-        print(len(results), end='\r')
-
+            print('Random')
+        probas, truth = flatten_results(results)
+        result(probas, truth)
         # summary = {'genuine': [], 'skilled': [], 'random': []}
         # for test_fn in test_fns_genuine:
         #     prediction = predict(model, test_fn)
@@ -331,8 +338,6 @@ def evaluate(number_enrolment, sig_type, dataset_folder, total_authors, negative
         # print('[random]', stats(summary['random']))
     # assert len(results['probas']) == (90 * 66)
 
-    probas, truth = flatten_results(results)
-    result(probas, truth)
 
 
 def main(args):
