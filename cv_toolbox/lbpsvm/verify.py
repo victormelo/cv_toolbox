@@ -141,7 +141,8 @@ class UserEvaluatorThread(threading.Thread):
             self.labels.append(1)
             self.data.append(hist)
 
-        for negative_fn in self.negative_fns:
+        # for negative_fn in self.negative_fns:
+        for negative_fn in self.test_fns_random_forgery:
             # load the image, convert it to grayscale, and describe it
             hist = compute_feature(negative_fn, self.options['cache_dir'])
 
@@ -149,6 +150,7 @@ class UserEvaluatorThread(threading.Thread):
             # label and data lists
             self.labels.append(0)
             self.data.append(hist)
+        self.model.fit(self.data, self.labels)
 
 
         X = []
@@ -162,13 +164,13 @@ class UserEvaluatorThread(threading.Thread):
             data = compute_feature(test_fn, self.options['cache_dir'])
             X.append(data)
             ytrue.append(0)
-        for test_fn in self.test_fns_random_forgery:
-            data = compute_feature(test_fn, self.options['cache_dir'])
-            X.append(data)
-            ytrue.append(0)
+        # for test_fn in self.test_fns_random_forgery:
+        #     data = compute_feature(test_fn, self.options['cache_dir'])
+        #     X.append(data)
+        #     ytrue.append(0)
 
-        self.model.fit(self.data, self.labels)
         probas = self.model.predict_proba(X)
+
         for i, proba in enumerate(probas):
             self.results[self.user]['probas'].append(proba)
             self.results[self.user]['truth'].append(ytrue[i])
