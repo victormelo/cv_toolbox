@@ -1,27 +1,27 @@
 """Verify a signature
 Usage:
     verify.py [options] multi <dataset_folder> <total_authors> <number_enrolment> <sig_type> <negative_folder> <number_negative>
-    verify.py [options] mono <dataset_folder> <total_authors> <number_enrolment> <sig_type> <negative_folder>
+    verify.py [options] mono <dataset_folder> <total_authors> <number_enrolment> <sig_type> <negative_folder> <number_negative>
     verify.py [options] mixed <dataset_folder> <total_authors> <number_enrolment> <sig_type> <negative_folder> <number_negative>
 
 Options:
   --cache-dir=<s>                directory to use for cache
   --synth-sig-type=<s>            the sig type to use as real in case of mixed set
   --mixed-mode=<s>            i, ii or iii.. refer to the paper [default: i]
-
+  
 
 """
 
 # from lbp import LocalBinaryPatterns
 from sklearn.svm import LinearSVC
 import argparse
-# import cv2
+import cv2
 from docopt import docopt
 # from core.util import gradient
 # from features.shog import shog
 from sklearn import preprocessing
 from sklearn import svm, ensemble
-# from hu2016.feature import extract_feature_vector
+from hu2016.feature import extract_feature_vector
 import glob
 import os.path as P
 import os
@@ -74,8 +74,6 @@ def pause():
 
 
 def compute_feature(fn, cache_dir):
-    # image = cv2.imread(fn)
-    # gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     bfn = P.basename(fn).replace('.', '-')
     h5fn = P.join(cache_dir, '%s.h5' % bfn)
     error = False
@@ -87,6 +85,8 @@ def compute_feature(fn, cache_dir):
             error = True
 
     # if not P.exists(h5fn) or error:
+    #     image = cv2.imread(fn)
+    #     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     #     features = extract_feature_vector(gray)
     #     dn = P.dirname(h5fn)
     #     if not P.exists(dn):
@@ -210,7 +210,7 @@ def sanity_copy(foldername, sanity_path, fns):
 
 
 def sanity_check(u, positive_fns, f_negative_fns, test_fns_genuine, test_fns_random_forgery, test_fns_skilled_forgery):
-    path = '/home/victor/playground/sanity-check'
+    path = '/home/vkslm/playground/sanity-check'
 
     sanity_path = P.join(path, u)
     sanity_copy('positive', sanity_path, positive_fns)
@@ -234,6 +234,9 @@ def evaluate(number_enrolment, sig_type, dataset_folder, total_authors, negative
             if args['multi']:
                 # first signature of each ession of user 00001
                 pattern_positive = ['%s*1g-%s.png' % (u, sig_type)]
+            elif args['mono']:
+                # using the four samples of the first session
+                pattern_positive = ['%ss0001*-%s.png' % (u, sig_type)]
             elif args['mixed']:
                 # i) 4 real samples belonging to the
                 # first acquisition session (as in experiment 1 - mono
@@ -293,12 +296,11 @@ def evaluate(number_enrolment, sig_type, dataset_folder, total_authors, negative
             # print("\n".join(positive_fns))
             # print("\n".join(f_negative_fns))
             # train a Linear SVM on the data
-            # model = ensemble.RandomForestClassifier(n_estimators=30, max_depth=3)
-            svm = LinearSVC()
+            # model = ensemble.RandomForestClassifier(n_estimators=100, max_depth=10)
+            svc = LinearSVC()
             from sklearn.calibration import CalibratedClassifierCV
-            model = CalibratedClassifierCV(svm)
-            # model = linear_model.LogisticRegression()
-            # y_proba = clf.predict_proba(X_test)
+            model = CalibratedClassifierCV(svc)
+
             evaluator = UserEvaluatorThread(u,
                 model,
                 positive_fns,
