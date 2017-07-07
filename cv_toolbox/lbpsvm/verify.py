@@ -8,6 +8,7 @@ Options:
   --cache-dir=<s>                directory to use for cache
   --synth-sig-type=<s>            the sig type to use as real in case of mixed set
   --mixed-mode=<s>            i, ii or iii.. refer to the paper [default: i]
+  --all                       verify all signature types (r, s and s2)
   
 
 """
@@ -33,6 +34,8 @@ from sklearn.metrics import roc_curve, auc
 import matplotlib.pyplot as plt
 import shutil
 from sklearn import linear_model
+import scikitplot.plotters as skplt
+
 all_random_forgeries = []
 # np.random.seed(seed=42)
 
@@ -40,7 +43,7 @@ all_random_forgeries = []
 def file_output(filename):
     return open(filename, 'w')
 
-def result(probas, truth):
+def result(probas, truth, label, mixed_mode=''):
     fpr, tpr, thresholds = roc_curve(truth, np.array(probas)[:, 1])
     fnr = 1-tpr
 
@@ -49,7 +52,21 @@ def result(probas, truth):
         fpr[arg],
         fnr[arg],
         thresholds[arg]))
-
+    lbls = {}
+    lbls['ri'] = ('-', '#000000', 'Real 4')
+    lbls['rii'] = (':', '#000000', 'Real 8')
+    lbls['siii'] = ('--', '#c0c0c0', 'Real + Proposed Synthetic')
+    lbls['s2iii'] = (':', '#c0c0c0', 'Real + Diaz Synthetic')
+    lbls['r'] = ('--', '#c0c0c0', 'Real')
+    lbls['s'] = (':', '#000000', 'Proposed Synthetic')
+    lbls['s2'] = ('-', '#000000', 'Diaz Synthetic')
+    plt.plot(fpr*100, 
+        fnr*100, 
+        lbls[label+mixed_mode][0], 
+        color=lbls[label+mixed_mode][1], 
+        lw=2, 
+        label='%s (EER = %0.2f)' % (lbls[label+mixed_mode][2], ((fpr[arg]+fnr[arg]) / 2)*100))
+    
 class TrainerThread(threading.Thread):
     def __init__(self, name, url, q):
         threading.Thread.__init__(self)
@@ -221,125 +238,165 @@ def sanity_check(u, positive_fns, f_negative_fns, test_fns_genuine, test_fns_ran
 
 def evaluate(number_enrolment, sig_type, dataset_folder, total_authors, negative_fns, number_negative, options, args, skilled=True):
     results = {}
+    mixed_mode = options['mixed_mode']
+
+    if(args['--all']):
+        if(args['mixed']):
+            configs = [('r', 'i'), ('r', 'ii'), ('s2', 'iii'), ('s', 'iii')]
+        else:
+            configs = [('r', ''), ('s2', ''), ('s', '')]
+
+    else:
+        configs = [(sig_type, mixed_mode)]
 
     for typ in [True, False]:
-        for user in range(1, number_enrolment+1):
-            u = 'u%04d' % user
-            results[u] = {'probas': [], 'truth': []}
-            pattern_all = '%s*-%s.png' % (u, sig_type)
-            pattern_random = '*s0001*1g*-%s.png' % sig_type
-            genuine_folder = P.join(u, 'g')
-            forgery_folder = P.join(u, 'f')
-            pattern_to_exclude = None
-            if args['multi']:
-                # first signature of each ession of user 00001
-                pattern_positive = ['%s*1g-%s.png' % (u, sig_type)]
-            elif args['mono']:
-                # using the four samples of the first session
-                pattern_positive = ['%ss0001*-%s.png' % (u, sig_type)]
-            elif args['mixed']:
-                # i) 4 real samples belonging to the
-                # first acquisition session (as in experiment 1 - mono
-                # session), ii)  and iii) 4 real samples belonging
-                # to the first session plus 4 synthetic samples belonging
-                # to the second session.
-                if options['mixed_mode'] == 'i':
-                     # 4 real samples belonging to the first acquisition session
+        for (sig_type, mixed_mode) in configs:
+            for user in range(1, number_enrolment+1):
+                u = 'u%04d' % user
+                results[u] = {'probas': [], 'truth': []}
+                pattern_all = '%s*-%s.png' % (u, sig_type)
+                pattern_random = '*s0001*1g*-%s.png' % sig_type
+                genuine_folder = P.join(u, 'g')
+                forgery_folder = P.join(u, 'f')
+                pattern_to_exclude = None
+                if args['multi']:
+                    # first signature of each ession of user 00001
+                    pattern_positive = ['%s*1g-%s.png' % (u, sig_type)]
+                elif args['mono']:
+                    # using the four samples of the first session
                     pattern_positive = ['%ss0001*-%s.png' % (u, sig_type)]
-
-                elif options['mixed_mode'] == 'ii':
-                    # 8 real samples belonging to the first and the second sessions,
-                    pattern_positive = ['%ss0001*-%s.png' % (u, sig_type),
-                                        '%ss0002*-%s.png' % (u, sig_type)]
-
-                elif options['mixed_mode'] == 'iii':
-                    # 4 real samples belonging
+                elif args['mixed']:
+                    # i) 4 real samples belonging to the
+                    # first acquisition session (as in experiment 1 - mono
+                    # session), ii)  and iii) 4 real samples belonging
                     # to the first session plus 4 synthetic samples belonging
                     # to the second session.
-                    pattern_positive = ['%ss0001*-%s.png' % (u, sig_type),
-                                        '%ss0002*-%s.png' % (u, options['synth_sig_type'])]
+                    if mixed_mode == 'i':
+                         # 4 real samples belonging to the first acquisition session
+                        pattern_positive = ['%ss0001*-%s.png' % (u, sig_type)]
 
-                pattern_to_exclude = ['%ss0001*-%s.png' % (u, sig_type), '%ss0002*-%s.png' % (u, sig_type)]
+                    elif mixed_mode == 'ii':
+                        # 8 real samples belonging to the first and the second sessions,
+                        pattern_positive = ['%ss0001*-%s.png' % (u, sig_type),
+                                            '%ss0002*-%s.png' % (u, sig_type)]
 
-            positive_fns = []
-            for pattern in pattern_positive:
-               positive_fns.extend(glob.glob(P.join(P.join(dataset_folder, genuine_folder), pattern)))
+                    elif mixed_mode == 'iii':
+                        # 4 real samples belonging
+                        # to the first session plus 4 synthetic samples belonging
+                        # to the second session.
+                        pattern_positive = ['%ss0001*-%s.png' % (u, sig_type),
+                                            '%ss0002*-%s.png' % (u, options['synth_sig_type'])]
 
-            all_positive_fns = glob.glob(P.join(P.join(dataset_folder, genuine_folder), pattern_all))
+                    pattern_to_exclude = ['%ss0001*-%s.png' % (u, sig_type), '%ss0002*-%s.png' % (u, sig_type)]
 
-            if pattern_to_exclude:
-                to_exclude_fns = []
-                for pattern in pattern_to_exclude:
-                   to_exclude_fns.extend(glob.glob(P.join(P.join(dataset_folder, genuine_folder), pattern)))
-                test_fns_genuine = list(set(all_positive_fns) - set(to_exclude_fns))
+                positive_fns = []
+                for pattern in pattern_positive:
+                   positive_fns.extend(glob.glob(P.join(P.join(dataset_folder, genuine_folder), pattern)))
+
+                all_positive_fns = glob.glob(P.join(P.join(dataset_folder, genuine_folder), pattern_all))
+
+                if pattern_to_exclude:
+                    to_exclude_fns = []
+                    for pattern in pattern_to_exclude:
+                       to_exclude_fns.extend(glob.glob(P.join(P.join(dataset_folder, genuine_folder), pattern)))
+                    test_fns_genuine = list(set(all_positive_fns) - set(to_exclude_fns))
+                else:
+                    test_fns_genuine = list(set(all_positive_fns) - set(positive_fns))
+
+                all_fns = glob.glob(P.join(P.join(dataset_folder, genuine_folder), pattern_all))
+                test_fns_skilled_forgery = glob.glob(P.join(P.join(dataset_folder, forgery_folder), pattern_all))
+                test_fns_random_forgery = []
+                for random_forgery_user in range(number_enrolment+1, total_authors+1):
+                    ru = 'u%04d' % random_forgery_user
+                    genuine_folder = P.join(ru, 'g')
+                    test_fns_random_forgery.extend(glob.glob(P.join(P.join(dataset_folder, genuine_folder), pattern_random), recursive=True))
+
+                # initialize the local binary patterns descriptor along with
+                # the data and label lists
+                data = []
+                labels = []
+
+                f_negative_fns = negative_fns.copy()
+                np.random.shuffle(f_negative_fns)
+                f_negative_fns = f_negative_fns[:number_negative]
+
+                # sanity_check(u, positive_fns, f_negative_fns, test_fns_genuine, test_fns_random_forgery, test_fns_skilled_forgery)
+                # print("\n".join(positive_fns))
+                # print("\n".join(f_negative_fns))
+                # train a Linear SVM on the data
+                # model = ensemble.RandomForestClassifier(n_estimators=100, max_depth=10)
+                svc = LinearSVC()
+                from sklearn.calibration import CalibratedClassifierCV
+                model = CalibratedClassifierCV(svc)
+
+                evaluator = UserEvaluatorThread(u,
+                    model,
+                    positive_fns,
+                    f_negative_fns,
+                    test_fns_genuine,
+                    test_fns_skilled_forgery,
+                    test_fns_random_forgery,
+                    options,
+                    results)
+                evaluator.run(skilled=typ)
+
+                print(len(results), end='\r')
+                
+            if(typ):
+                print('Skilled')
             else:
-                test_fns_genuine = list(set(all_positive_fns) - set(positive_fns))
+                print('Random')
+            probas, truth = flatten_results(results)
 
-            all_fns = glob.glob(P.join(P.join(dataset_folder, genuine_folder), pattern_all))
-            test_fns_skilled_forgery = glob.glob(P.join(P.join(dataset_folder, forgery_folder), pattern_all))
-            test_fns_random_forgery = []
-            for random_forgery_user in range(number_enrolment+1, total_authors+1):
-                ru = 'u%04d' % random_forgery_user
-                genuine_folder = P.join(ru, 'g')
-                test_fns_random_forgery.extend(glob.glob(P.join(P.join(dataset_folder, genuine_folder), pattern_random), recursive=True))
+            result(probas, truth, sig_type, mixed_mode=mixed_mode)
+            # summary = {'genuine': [], 'skilled': [], 'random': []}
+            # for test_fn in test_fns_genuine:
+            #     prediction = predict(model, test_fn)
+            #     summary['genuine'].append({'predicted': prediction, 'label': 1})
 
-            # initialize the local binary patterns descriptor along with
-            # the data and label lists
-            data = []
-            labels = []
+            # for test_fn in test_fns_skilled_forgery:
+            #     prediction = predict(model, test_fn, 0)
+            #     summary['skilled'].append({'predicted': prediction, 'label': 0})
 
-            f_negative_fns = negative_fns.copy()
-            np.random.shuffle(f_negative_fns)
-            f_negative_fns = f_negative_fns[:number_negative]
+            # for test_fn in test_fns_random_forgery:
+            #     prediction = predict(model, test_fn, 0)
+            #     summary['random'].append({'predicted': prediction, 'label': 0})
 
-            # sanity_check(u, positive_fns, f_negative_fns, test_fns_genuine, test_fns_random_forgery, test_fns_skilled_forgery)
-            # print("\n".join(positive_fns))
-            # print("\n".join(f_negative_fns))
-            # train a Linear SVM on the data
-            # model = ensemble.RandomForestClassifier(n_estimators=100, max_depth=10)
-            svc = LinearSVC()
-            from sklearn.calibration import CalibratedClassifierCV
-            model = CalibratedClassifierCV(svc)
+            # print(summary)
+            # print('User %s' % u)
+            # print('[genuine]', stats(summary['genuine']))
+            # print('[skilled]', stats(summary['skilled']))
+            # print('[random]', stats(summary['random']))
+        # assert len(results['probas']) == (90 * 66)
 
-            evaluator = UserEvaluatorThread(u,
-                model,
-                positive_fns,
-                f_negative_fns,
-                test_fns_genuine,
-                test_fns_skilled_forgery,
-                test_fns_random_forgery,
-                options,
-                results)
-            evaluator.run(skilled=typ)
-
-            print(len(results), end='\r')
-            
+        plt.xlim([0.0, 40])
+        plt.ylim([0.0, 40])
+        plt.xlabel('False Acceptance Rate (in %)')
+        plt.ylabel('False Rejection Rate (in %)')
+        typtxt = ''
         if(typ):
-            print('Skilled')
+            typtxt = 'Skilled'
+            plt.legend(loc="lower left")
         else:
-            print('Random')
-        probas, truth = flatten_results(results)
-        result(probas, truth)
-        # summary = {'genuine': [], 'skilled': [], 'random': []}
-        # for test_fn in test_fns_genuine:
-        #     prediction = predict(model, test_fn)
-        #     summary['genuine'].append({'predicted': prediction, 'label': 1})
+            plt.legend(loc="upper right")
+            typtxt = 'Random'
 
-        # for test_fn in test_fns_skilled_forgery:
-        #     prediction = predict(model, test_fn, 0)
-        #     summary['skilled'].append({'predicted': prediction, 'label': 0})
+        if(args['mixed']):
+            exp = 'Experiment 2'
+            mode = 'mixed enrollment'
+        else:
+            exp = 'Experiment 1'
+            if(args['mono']):
+                mode = 'mono-session'
+            else:
+                mode = 'multi-session'
 
-        # for test_fn in test_fns_random_forgery:
-        #     prediction = predict(model, test_fn, 0)
-        #     summary['random'].append({'predicted': prediction, 'label': 0})
+        title = '%s: %s - %s' % (exp, mode, typtxt)
+        plt.title(title)
 
-        # print(summary)
-        # print('User %s' % u)
-        # print('[genuine]', stats(summary['genuine']))
-        # print('[skilled]', stats(summary['skilled']))
-        # print('[random]', stats(summary['random']))
-    # assert len(results['probas']) == (90 * 66)
-
+        plt.grid(True)
+        plt.figure()
+    plt.show()
 
 
 def main(args):
@@ -359,7 +416,6 @@ def main(args):
         'cache_dir': cache_dir,
         'synth_sig_type': synth_sig_type,
         'mixed_mode': mixed_mode
-
     }
     # --test ~/playground/cv_toolbox/nn/renamed-biosecurid/u0089/g/u0089s0001_sg0002g-r.png \
 
